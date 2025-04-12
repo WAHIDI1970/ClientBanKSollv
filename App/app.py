@@ -1,4 +1,3 @@
-
 # -*- coding: utf-8 -*-
 import streamlit as st
 import pandas as pd
@@ -124,10 +123,12 @@ if st.sidebar.button("🔮 Predict Solvency", type="primary"):
             else:
                 st.success(f"✅ Solvent (Confidence: {1-results['logistic']['probability']:.1%})")
             
+            # Performance metrics
             st.markdown("**Model Characteristics**")
             st.markdown("- 📊 Better for interpretable results")
             st.markdown("- ⚖️ Handles class imbalance well")
             
+            # Confusion matrix
             try:
                 fig, ax = plt.subplots()
                 ConfusionMatrixDisplay.from_estimator(
@@ -150,22 +151,27 @@ if st.sidebar.button("🔮 Predict Solvency", type="primary"):
             else:
                 st.success(f"✅ Solvent (Confidence: {1-results['knn']['probability']:.1%})")
             
+            # Performance metrics
             st.markdown("**Model Characteristics**")
             st.markdown("- 🧠 Better for complex patterns")
             st.markdown("- 📏 Uses distance-based analysis")
             
+            # Feature importance placeholder
             st.markdown("**Decision Factors**")
             st.info("KNN considers all features equally in its distance calculation")
 
+        # Comparison summary
         st.divider()
         if results['logistic']['prediction'] == results['knn']['prediction']:
             st.success("🎯 Both models agree on the prediction")
         else:
             st.warning("⚠️ Models disagree - consider manual review")
             
+            # Show confidence comparison
             diff = abs(results['logistic']['probability'] - results['knn']['probability'])
             st.metric("Confidence Difference", f"{diff:.1%}")
 
+        # Client data display
         st.subheader("📋 Client Data Summary")
         st.dataframe(client_data.style.format({
             "Expenses": "€{:.2f}",
@@ -174,6 +180,7 @@ if st.sidebar.button("🔮 Predict Solvency", type="primary"):
             "Price": "€{:.2f}"
         }))
 
+        # Download results
         csv = client_data.assign(
             Logistic_Prediction=["Non-Solvent" if results['logistic']['prediction'] == 1 else "Solvent"],
             Logistic_Confidence=[f"{results['logistic']['probability']:.1%}"],
