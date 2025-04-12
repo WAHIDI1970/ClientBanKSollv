@@ -16,8 +16,8 @@ st.set_page_config(
 def load_models():
     try:
         log_model = joblib.load('logistic_model.joblib')
-        best_knn = joblib.load('best_knn_model.joblib')
-        scaler = joblib.load('scaler.joblib')
+        best_knn = joblib.load('KNN (1).joblib')
+        scaler = joblib.load('scaler (1).joblib')
         return log_model, best_knn, scaler
     except Exception as e:
         st.error(f"Error loading models: {e}")
