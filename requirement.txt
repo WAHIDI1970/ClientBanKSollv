@@ -1,0 +1,21 @@
+# Traitement de données
+pandas
+numpy
+pyreadstat
+
+# Visualisation
+matplotlib
+seaborn
+
+# Machine learning
+scikit-learn
+imblearn
+
+# Application web
+streamlit
+
+# Sauvegarde et chargement des modèles
+joblib
+
+# Google Colab (optionnel, si utilisé uniquement dans Colab)
+# google-colab
