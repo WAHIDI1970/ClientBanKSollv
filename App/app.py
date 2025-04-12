@@ -1,54 +1,96 @@
+# Fichier : App/app.py
+
 import streamlit as st
+import pandas as pd
 import numpy as np
 import joblib
+import os
+import pyreadstat
 
-# Import de la classe personnalisée
-from modele_knn import ModeleKNNOptimise
-
-# -------------------------------
-# Chargement du modèle
-# -------------------------------
+# -----------------------
+# 📦 Chargement des modèles
+# -----------------------
 @st.cache_resource
-def load_model():
-    try:
-        model = joblib.load("models/ModeleKNNOptimise.pkl")
-        return model
-    except Exception as e:
-        st.error(f"Erreur lors du chargement du modèle : {e}")
-        return None
+def charger_modeles():
+    logistic = joblib.load("models/logistic_model.pkl")
+    knn = joblib.load("models/knn_model.pkl")  # Modèle KNN entraîné, pas la classe complète
+    scaler = joblib.load("models/scaler.pkl")
+    return logistic, knn, scaler
 
-# -------------------------------
-# Interface Utilisateur
-# -------------------------------
+# -----------------------
+# 📚 Chargement de scoring.sav
+# -----------------------
+@st.cache_data
+def charger_base():
+    df, meta = pyreadstat.read_sav("Data/scoring.sav")
+    return df
+
+# -----------------------
+# 🚀 Application principale
+# -----------------------
 def main():
-    st.set_page_config(page_title="Scoring Client", layout="centered")
-    st.title("📊 Application de Scoring Bancaire")
-    st.write("Remplissez les informations du client pour prédire sa solvabilité.")
+    st.set_page_config(page_title="🧠 Prédiction de Solvabilité", layout="centered")
+    st.title("💳 Application de Scoring Bancaire")
+    st.markdown("Saisissez les données d'un client pour prédire sa **solvabilité** à l’aide de deux modèles.")
 
-    # Exemple de champs à adapter à tes vraies variables
-    age = st.slider("Âge", 18, 70, 30)
-    revenu = st.number_input("Revenu mensuel (€)", min_value=0, value=2500)
-    montant_credit = st.number_input("Montant du crédit demandé (€)", min_value=0, value=10000)
-    duree_credit = st.slider("Durée du crédit (mois)", 6, 60, 24)
-    nombre_enfants = st.slider("Nombre d’enfants à charge", 0, 5, 0)
+    # Chargement des modèles & données
+    logistic_model, knn_model, scaler = charger_modeles()
+    df = charger_base()
 
-    # Transformer en array numpy pour prédiction
-    input_data = np.array([[age, revenu, montant_credit, duree_credit, nombre_enfants]])
+    # Détecter les modalités de 'Marital'
+    marital_options = sorted(df['Marital'].dropna().unique().tolist())
+    marital_mapping = {val: idx for idx, val in enumerate(marital_options)}
 
-    # Bouton pour prédire
-    if st.button("Prédire le statut du client"):
-        model = load_model()
-        if model:
-            prediction = model.predict(input_data)[0]
-            proba = model.predict_proba(input_data)[0][1]  # proba d'être non solvable
+    # Interface utilisateur
+    st.subheader("📝 Saisie des caractéristiques du client")
 
-            if prediction == 1:
-                st.error(f"❌ Le client est prédit **non solvable**. (Risque: {proba:.2%})")
+    age = st.slider("Âge", min_value=18, max_value=100, value=30)
+    marital = st.selectbox("Statut marital", marital_options)
+    expenses = st.number_input("Dépenses mensuelles (€)", min_value=0, max_value=20000, value=1000)
+    income = st.number_input("Revenu mensuel (€)", min_value=0, max_value=50000, value=3000)
+    amount = st.number_input("Montant emprunté (€)", min_value=0, max_value=100000, value=10000)
+    price = st.number_input("Prix de l'achat (€)", min_value=0, max_value=150000, value=12000)
+
+    if st.button("📊 Prédire la solvabilité"):
+        # Préparation des données
+        donnees_client = pd.DataFrame([{
+            "Age": age,
+            "Marital": marital_mapping[marital],
+            "Expenses": expenses,
+            "Income": income,
+            "Amount": amount,
+            "Price": price
+        }])
+
+        # Mise à l'échelle
+        donnees_scaled = scaler.transform(donnees_client)
+
+        # Prédiction Logistique
+        pred_log = logistic_model.predict(donnees_scaled)[0]
+
+        # Prédiction KNN
+        pred_knn = knn_model.predict(donnees_scaled)[0]
+
+        # Résultats
+        st.subheader("🔎 Résultat de la prédiction")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("### Modèle Logistique")
+            if pred_log == 1:
+                st.error("❌ Client non solvable")
             else:
-                st.success(f"✅ Le client est prédit **solvable**. (Risque: {proba:.2%})")
+                st.success("✅ Client solvable")
 
-# -------------------------------
-if __name__ == "__main__":
+        with col2:
+            st.markdown("### Modèle KNN")
+            if pred_knn == 1:
+                st.error("❌ Client non solvable")
+            else:
+                st.success("✅ Client solvable")
+
+if __name__ == '__main__':
     main()
+
 
 
