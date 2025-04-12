@@ -3,39 +3,48 @@ import streamlit as st
 import pandas as pd
 import joblib
 import os
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 
-# Define custom KNN class if needed
-class ModelekNNOptimise:
-    pass  # This should match your original KNN model class
-
 # Set page configuration
-st.title('🏦 Credit Scoring App')
-st.info('This app predicts client solvency using logistic regression and KNN models')
+st.set_page_config(
+    page_title="🏦 Credit Scoring App",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# File paths
-MODEL_DIR = "models"
+st.title("🏦 Credit Scoring App")
+st.info("This app predicts client solvency using logistic regression and KNN models")
+
+# File paths - adjust these if your files are named differently
 MODEL_FILES = {
-    'logistic': 'logistic_model.pkl',
-    'knn': 'KNN (1).pkl',
-    'scaler': 'scaler (1).pkl'
+    'logistic': 'models/logistic_model.pkl',
+    'knn': 'models/knn_model.pkl',  # Renamed from KNN (1).pkl
+    'scaler': 'models/scaler.pkl'   # Renamed from scaler (1).pkl
 }
 
-# Load models
+# Load models with error handling
 @st.cache_resource
 def load_models():
     try:
-        models = {}
-        for model_name, filename in MODEL_FILES.items():
-            path = os.path.join(MODEL_DIR, filename)
-            models[model_name] = joblib.load(path)
+        # First, try loading with standard classes
+        models = {
+            'logistic': joblib.load(MODEL_FILES['logistic']),
+            'knn': joblib.load(MODEL_FILES['knn']),
+            'scaler': joblib.load(MODEL_FILES['scaler'])
+        }
         return models
     except Exception as e:
         st.error(f"Error loading models: {str(e)}")
+        st.error("Please ensure:")
+        st.error("1. Model files exist in the 'models' folder")
+        st.error("2. Files are named correctly (knn_model.pkl, logistic_model.pkl, scaler.pkl)")
+        st.error("3. No custom class requirements exist")
         return None
 
+# Load models
 models = load_models()
-
 if models is None:
     st.stop()
 
@@ -53,14 +62,9 @@ FEATURES = {
     'Purchase Value (€)': {'type': 'number', 'min': 0, 'default': 1200}
 }
 
-OUTLIER_COLS = [
-    'outlier_amount', 'outlier_expenses',
-    'outlier_income', 'outlier_price'
-]
-
 # Input form in sidebar
 with st.sidebar:
-    st.header('Client Information')
+    st.header("Client Information")
     input_data = {}
     
     for feature, config in FEATURES.items():
@@ -77,17 +81,15 @@ with st.sidebar:
 
 # Prepare input data
 def prepare_input(form_data):
-    # Create DataFrame
-    df = pd.DataFrame([{
+    features = {
         'Age': form_data['Age'],
         'Marital': form_data['Marital Status'],
         'Expenses': form_data['Monthly Expenses (€)'],
         'Income': form_data['Monthly Income (€)'],
         'Amount': form_data['Loan Amount (€)'],
-        'Price': form_data['Purchase Value (€)'],
-        **{col: False for col in OUTLIER_COLS}
-    }])
-    return df
+        'Price': form_data['Purchase Value (€)']
+    }
+    return pd.DataFrame([features])
 
 # Make predictions
 def predict(input_df):
@@ -95,11 +97,10 @@ def predict(input_df):
         # Scale features
         scaled_input = models['scaler'].transform(input_df)
         
-        # Logistic Regression prediction
+        # Get predictions
         log_pred = models['logistic'].predict(scaled_input)[0]
         log_proba = models['logistic'].predict_proba(scaled_input)[0]
         
-        # KNN prediction
         knn_pred = models['knn'].predict(input_df)[0]
         knn_proba = models['knn'].predict_proba(input_df)[0]
         
@@ -107,12 +108,12 @@ def predict(input_df):
             'logistic': {
                 'prediction': log_pred,
                 'probability': log_proba[1] if log_pred == 1 else log_proba[0],
-                'proba_array': log_proba
+                'proba': log_proba
             },
             'knn': {
                 'prediction': knn_pred,
                 'probability': knn_proba[1] if knn_pred == 1 else knn_proba[0],
-                'proba_array': knn_proba
+                'proba': knn_proba
             }
         }
     except Exception as e:
@@ -121,77 +122,47 @@ def predict(input_df):
 
 # Display results
 def display_results(results):
-    st.subheader('Prediction Results')
+    st.subheader("Prediction Results")
     
-    # Create tabs for each model
-    tab1, tab2 = st.tabs(["Logistic Regression", "KNN Model"])
+    col1, col2 = st.columns(2)
     
-    with tab1:
-        st.write("**Logistic Regression Prediction**")
-        pred_text = "Non-Solvent" if results['logistic']['prediction'] == 1 else "Solvent"
-        st.success(f"Predicted Status: {pred_text}")
-        
-        # Probability bars
-        st.write("**Probability**")
-        proba_df = pd.DataFrame({
-            'Status': ['Solvent', 'Non-Solvent'],
-            'Probability': results['logistic']['proba_array']
-        })
-        st.bar_chart(proba_df.set_index('Status'))
-        
-    with tab2:
-        st.write("**KNN Model Prediction**")
-        pred_text = "Non-Solvent" if results['knn']['prediction'] == 1 else "Solvent"
-        st.success(f"Predicted Status: {pred_text}")
-        
-        # Probability bars
-        st.write("**Probability**")
-        proba_df = pd.DataFrame({
-            'Status': ['Solvent', 'Non-Solvent'],
-            'Probability': results['knn']['proba_array']
-        })
-        st.bar_chart(proba_df.set_index('Status'))
+    with col1:
+        st.markdown("**Logistic Regression**")
+        pred = "Non-Solvent" if results['logistic']['prediction'] == 1 else "Solvent"
+        st.metric("Status", pred, f"{results['logistic']['probability']:.1%}")
+        st.bar_chart(pd.DataFrame({
+            'Probability': results['logistic']['proba'],
+            'Class': ['Solvent', 'Non-Solvent']
+        }).set_index('Class'))
     
-    # Comparison
-    st.subheader("Model Comparison")
-    compare_df = pd.DataFrame({
-        'Model': ['Logistic Regression', 'KNN'],
-        'Non-Solvent Probability': [
-            results['logistic']['proba_array'][1],
-            results['knn']['proba_array'][1]
-        ]
-    })  # Fixed the bracket issue here
-    st.bar_chart(compare_df.set_index('Model'))
+    with col2:
+        st.markdown("**KNN Model**")
+        pred = "Non-Solvent" if results['knn']['prediction'] == 1 else "Solvent"
+        st.metric("Status", pred, f"{results['knn']['probability']:.1%}")
+        st.bar_chart(pd.DataFrame({
+            'Probability': results['knn']['proba'],
+            'Class': ['Solvent', 'Non-Solvent']
+        }).set_index('Class'))
 
 # Main app flow
-if st.sidebar.button('Predict Solvency'):
-    with st.spinner('Making predictions...'):
-        # Prepare input
+if st.sidebar.button("Predict Solvency"):
+    with st.spinner("Analyzing..."):
         input_df = prepare_input(input_data)
-        
-        # Make predictions
         results = predict(input_df)
         
-        # Display results
         if results:
             display_results(results)
-            
-            # Show raw input data
             with st.expander("View Input Data"):
-                st.dataframe(input_df.drop(columns=OUTLIER_COLS))
+                st.dataframe(input_df)
 else:
-    st.info("Please enter client information in the sidebar and click 'Predict Solvency'")
+    st.info("Please enter client details and click 'Predict Solvency'")
 
-# Debug information
-with st.expander("Debug Information"):
-    st.write("**Looking for model files in:**")
-    for model_name, filename in MODEL_FILES.items():
-        path = os.path.join(MODEL_DIR, filename)
-        exists = "✅ Found" if os.path.exists(path) else "❌ Missing"
-        st.write(f"- {filename}: {exists}")
+# Debug section
+with st.expander("Technical Details"):
+    st.write("**Loaded Models:**")
+    st.write(f"- Logistic Regression: {type(models['logistic'])}")
+    st.write(f"- KNN: {type(models['knn'])}")
+    st.write(f"- Scaler: {type(models['scaler'])}")
     
-    if models:
-        st.write("**Models loaded successfully**")
-        st.write(f"- Logistic Regression: {type(models['logistic'])}")
-        st.write(f"- KNN Model: {type(models['knn'])}")
-        st.write(f"- Scaler: {type(models['scaler'])}")
+    st.write("**Expected Features:**")
+    st.write(list(FEATURES.keys()))
