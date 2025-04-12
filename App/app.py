@@ -1,96 +1,48 @@
-# Fichier : App/app.py
-
 import streamlit as st
-import pandas as pd
-import numpy as np
 import joblib
-import os
-import pyreadstat
+import numpy as np
 
-# -----------------------
-# 📦 Chargement des modèles
-# -----------------------
+# ⏳ Chargement des modèles
 @st.cache_resource
 def charger_modeles():
-    logistic = joblib.load("models/logistic_model.pkl")
-    knn = joblib.load("models/knn_model.pkl")  # Modèle KNN entraîné, pas la classe complète
+    modele_logistique = joblib.load("models/logistic_model.pkl")
     scaler = joblib.load("models/scaler.pkl")
-    return logistic, knn, scaler
+    return modele_logistique, scaler
 
-# -----------------------
-# 📚 Chargement de scoring.sav
-# -----------------------
-@st.cache_data
-def charger_base():
-    df, meta = pyreadstat.read_sav("Data/scoring.sav")
-    return df
-
-# -----------------------
-# 🚀 Application principale
-# -----------------------
+# Interface principale
 def main():
-    st.set_page_config(page_title="🧠 Prédiction de Solvabilité", layout="centered")
-    st.title("💳 Application de Scoring Bancaire")
-    st.markdown("Saisissez les données d'un client pour prédire sa **solvabilité** à l’aide de deux modèles.")
+    st.set_page_config(page_title="Scoring Bancaire", layout="centered")
+    st.title("🔍 Prédiction de la Solvabilité Bancaire")
+    st.markdown("Entrez les caractéristiques du client pour prédire sa solvabilité.")
 
-    # Chargement des modèles & données
-    logistic_model, knn_model, scaler = charger_modeles()
-    df = charger_base()
+    # Champs à remplir (correspondant aux features du modèle)
+    age = st.slider("Âge", 18, 90, 30)
+    marital = st.selectbox("Statut matrimonial", options=[0, 1])  # Adapter selon codage (0 = célibataire, 1 = marié ?)
+    expenses = st.number_input("Dépenses mensuelles", min_value=0.0, value=500.0)
+    income = st.number_input("Revenu mensuel", min_value=0.0, value=2500.0)
+    amount = st.number_input("Montant du crédit", min_value=0.0, value=5000.0)
+    price = st.number_input("Prix total du bien", min_value=0.0, value=15000.0)
 
-    # Détecter les modalités de 'Marital'
-    marital_options = sorted(df['Marital'].dropna().unique().tolist())
-    marital_mapping = {val: idx for idx, val in enumerate(marital_options)}
+    # Charger modèle
+    model, scaler = charger_modeles()
 
-    # Interface utilisateur
-    st.subheader("📝 Saisie des caractéristiques du client")
-
-    age = st.slider("Âge", min_value=18, max_value=100, value=30)
-    marital = st.selectbox("Statut marital", marital_options)
-    expenses = st.number_input("Dépenses mensuelles (€)", min_value=0, max_value=20000, value=1000)
-    income = st.number_input("Revenu mensuel (€)", min_value=0, max_value=50000, value=3000)
-    amount = st.number_input("Montant emprunté (€)", min_value=0, max_value=100000, value=10000)
-    price = st.number_input("Prix de l'achat (€)", min_value=0, max_value=150000, value=12000)
-
-    if st.button("📊 Prédire la solvabilité"):
+    if st.button("🔮 Prédire"):
         # Préparation des données
-        donnees_client = pd.DataFrame([{
-            "Age": age,
-            "Marital": marital_mapping[marital],
-            "Expenses": expenses,
-            "Income": income,
-            "Amount": amount,
-            "Price": price
-        }])
+        input_data = np.array([[age, marital, expenses, income, amount, price]])
+        input_scaled = scaler.transform(input_data)
 
-        # Mise à l'échelle
-        donnees_scaled = scaler.transform(donnees_client)
+        # Prédiction
+        prediction = model.predict(input_scaled)[0]
 
-        # Prédiction Logistique
-        pred_log = logistic_model.predict(donnees_scaled)[0]
+        # Affichage du résultat
+        if prediction == 0:
+            st.success("✅ Client **Solvable**")
+        else:
+            st.error("❌ Client **Non solvable**")
 
-        # Prédiction KNN
-        pred_knn = knn_model.predict(donnees_scaled)[0]
-
-        # Résultats
-        st.subheader("🔎 Résultat de la prédiction")
-
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("### Modèle Logistique")
-            if pred_log == 1:
-                st.error("❌ Client non solvable")
-            else:
-                st.success("✅ Client solvable")
-
-        with col2:
-            st.markdown("### Modèle KNN")
-            if pred_knn == 1:
-                st.error("❌ Client non solvable")
-            else:
-                st.success("✅ Client solvable")
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
+
 
 
 
