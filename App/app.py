@@ -6,15 +6,15 @@ import os
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 
-# Set page configuration
-st.set_page_config(
-    page_title="Credit Scoring Dashboard",
-    page_icon="📊",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# Define custom KNN class if needed
+class ModelekNNOptimise:
+    pass  # This should match your original KNN model class
 
-# Constants
+# Set page configuration
+st.title('🏦 Credit Scoring App')
+st.info('This app predicts client solvency using logistic regression and KNN models')
+
+# File paths
 MODEL_DIR = "models"
 MODEL_FILES = {
     'logistic': 'logistic_model.pkl',
@@ -22,224 +22,176 @@ MODEL_FILES = {
     'scaler': 'scaler (1).pkl'
 }
 
-# Debug function to show file structure
-def show_file_structure():
-    """Display the current directory structure for debugging"""
-    st.sidebar.header("File Structure Debug")
-    base_dir = os.getcwd()
-    st.sidebar.write(f"Current working directory: {base_dir}")
-    
-    st.sidebar.write("Looking for model files in:")
-    for model_name, filename in MODEL_FILES.items():
-        full_path = os.path.join(MODEL_DIR, filename)
-        exists = "✅" if os.path.exists(full_path) else "❌"
-        st.sidebar.write(f"{exists} {full_path}")
-
-# Load models with error handling
+# Load models
 @st.cache_resource
 def load_models():
-    """Load all required machine learning models"""
     try:
-        show_file_structure()
-        
-        # Verify models directory exists
-        if not os.path.exists(MODEL_DIR):
-            raise FileNotFoundError(f"Directory '{MODEL_DIR}' not found")
-        
-        # Load each model
         models = {}
         for model_name, filename in MODEL_FILES.items():
             path = os.path.join(MODEL_DIR, filename)
-            if not os.path.exists(path):
-                raise FileNotFoundError(f"Model file not found: {path}")
             models[model_name] = joblib.load(path)
-        
-        return models['logistic'], models['knn'], models['scaler']
-    
+        return models
     except Exception as e:
-        st.error(f"Model loading error: {str(e)}")
-        show_file_structure()
-        return None, None, None
+        st.error(f"Error loading models: {str(e)}")
+        return None
 
-# Load models
-log_model, knn_model, scaler = load_models()
+models = load_models()
 
-if None in [log_model, knn_model, scaler]:
-    st.error("Failed to load required models. Please check the error above.")
+if models is None:
     st.stop()
 
 # Feature configuration
 FEATURES = {
     'Age': {'type': 'number', 'min': 18, 'max': 100, 'default': 30},
-    'Marital': {
+    'Marital Status': {
         'type': 'select',
         'options': ['Single', 'Married', 'Divorced'],
         'mapping': {'Single': 1, 'Married': 2, 'Divorced': 3}
     },
-    'Expenses': {'type': 'number', 'min': 0, 'default': 200},
-    'Income': {'type': 'number', 'min': 0, 'default': 800},
-    'Amount': {'type': 'number', 'min': 0, 'default': 1000},
-    'Price': {'type': 'number', 'min': 0, 'default': 1200}
+    'Monthly Expenses (€)': {'type': 'number', 'min': 0, 'default': 200},
+    'Monthly Income (€)': {'type': 'number', 'min': 0, 'default': 800},
+    'Loan Amount (€)': {'type': 'number', 'min': 0, 'default': 1000},
+    'Purchase Value (€)': {'type': 'number', 'min': 0, 'default': 1200}
 }
 
-OUTLIER_COLUMNS = [
+OUTLIER_COLS = [
     'outlier_amount', 'outlier_expenses',
     'outlier_income', 'outlier_price'
 ]
 
-TRAINING_FEATURES = list(FEATURES.keys()) + OUTLIER_COLUMNS
-
-def create_input_form():
-    """Create the user input form"""
-    with st.form("client_input"):
-        st.header("Client Information")
-        
-        col1, col2 = st.columns(2)
-        form_data = {}
-        
-        with col1:
-            form_data['Age'] = st.number_input(
-                "Age",
-                min_value=FEATURES['Age']['min'],
-                max_value=FEATURES['Age']['max'],
-                value=FEATURES['Age']['default']
-            )
-            
-            marital_display = st.selectbox(
-                "Marital Status",
-                options=FEATURES['Marital']['options']
-            )
-            form_data['Marital'] = FEATURES['Marital']['mapping'][marital_display]
-            
-            form_data['Expenses'] = st.number_input(
-                "Monthly Expenses (€)",
-                min_value=FEATURES['Expenses']['min'],
-                value=FEATURES['Expenses']['default']
-            )
-        
-        with col2:
-            form_data['Income'] = st.number_input(
-                "Monthly Income (€)",
-                min_value=FEATURES['Income']['min'],
-                value=FEATURES['Income']['default']
-            )
-            
-            form_data['Amount'] = st.number_input(
-                "Loan Amount (€)",
-                min_value=FEATURES['Amount']['min'],
-                value=FEATURES['Amount']['default']
-            )
-            
-            form_data['Price'] = st.number_input(
-                "Purchase Value (€)",
-                min_value=FEATURES['Price']['min'],
-                value=FEATURES['Price']['default']
-            )
-        
-        submitted = st.form_submit_button("Predict Solvency")
-        return form_data if submitted else None
-
-def prepare_input_data(form_data):
-    """Prepare the input data for model prediction"""
-    input_df = pd.DataFrame([form_data])
+# Input form in sidebar
+with st.sidebar:
+    st.header('Client Information')
+    input_data = {}
     
-    # Add outlier columns initialized to False
-    for col in OUTLIER_COLUMNS:
-        input_df[col] = False
-    
-    return input_df[TRAINING_FEATURES]
+    for feature, config in FEATURES.items():
+        if config['type'] == 'number':
+            input_data[feature] = st.number_input(
+                feature,
+                min_value=config['min'],
+                max_value=config.get('max', None),
+                value=config['default']
+            )
+        elif config['type'] == 'select':
+            selected = st.selectbox(feature, options=config['options'])
+            input_data[feature] = config['mapping'][selected]
 
-def make_predictions(input_df):
-    """Make predictions using both models"""
+# Prepare input data
+def prepare_input(form_data):
+    # Create DataFrame
+    df = pd.DataFrame([{
+        'Age': form_data['Age'],
+        'Marital': form_data['Marital Status'],
+        'Expenses': form_data['Monthly Expenses (€)'],
+        'Income': form_data['Monthly Income (€)'],
+        'Amount': form_data['Loan Amount (€)'],
+        'Price': form_data['Purchase Value (€)'],
+        **{col: False for col in OUTLIER_COLS}
+    }])
+    return df
+
+# Make predictions
+def predict(input_df):
     try:
-        # Scale features for logistic regression
-        scaled_input = scaler.transform(input_df)
+        # Scale features
+        scaled_input = models['scaler'].transform(input_df)
         
-        # Get predictions
-        log_pred = log_model.predict(scaled_input)[0]
-        log_proba = log_model.predict_proba(scaled_input)[0][1]
+        # Logistic Regression prediction
+        log_pred = models['logistic'].predict(scaled_input)[0]
+        log_proba = models['logistic'].predict_proba(scaled_input)[0]
         
-        knn_pred = knn_model.predict(input_df)[0]
-        knn_proba = knn_model.predict_proba(input_df)[0][1]
+        # KNN prediction
+        knn_pred = models['knn'].predict(input_df)[0]
+        knn_proba = models['knn'].predict_proba(input_df)[0]
         
         return {
             'logistic': {
-                'prediction': 'Non-Solvent' if log_pred == 1 else 'Solvent',
-                'probability': log_proba,
-                'class': log_pred
+                'prediction': log_pred,
+                'probability': log_proba[1] if log_pred == 1 else log_proba[0],
+                'proba_array': log_proba
             },
             'knn': {
-                'prediction': 'Non-Solvent' if knn_pred == 1 else 'Solvent',
-                'probability': knn_proba,
-                'class': knn_pred
+                'prediction': knn_pred,
+                'probability': knn_proba[1] if knn_pred == 1 else knn_proba[0],
+                'proba_array': knn_proba
             }
         }
     except Exception as e:
         st.error(f"Prediction error: {str(e)}")
         return None
 
+# Display results
 def display_results(results):
-    """Display the prediction results"""
-    st.header("Prediction Results")
+    st.subheader('Prediction Results')
     
-    # Create columns for side-by-side comparison
-    col1, col2 = st.columns(2)
+    # Create tabs for each model
+    tab1, tab2 = st.tabs(["Logistic Regression", "KNN Model"])
     
-    with col1:
-        st.subheader("Logistic Regression")
-        st.metric(
-            "Client Status",
-            results['logistic']['prediction'],
-            f"{results['logistic']['probability']:.1%} confidence"
-        )
-        st.progress(results['logistic']['probability'])
-    
-    with col2:
-        st.subheader("KNN Model")
-        st.metric(
-            "Client Status",
-            results['knn']['prediction'],
-            f"{results['knn']['probability']:.1%} confidence"
-        )
-        st.progress(results['knn']['probability'])
-    
-    # Visual comparison
-    st.subheader("Model Confidence Comparison")
-    fig, ax = plt.subplots(figsize=(8, 4))
-    models = ['Logistic Regression', 'KNN']
-    probas = [results['logistic']['probability'], results['knn']['probability']]
-    colors = ['#1f77b4', '#ff7f0e']  # Blue and orange
-    
-    bars = ax.bar(models, probas, color=colors)
-    ax.set_ylim(0, 1)
-    ax.set_ylabel('Probability of Non-Solvency')
-    ax.set_title('Model Confidence Comparison')
-    
-    # Add value labels on top of bars
-    for bar in bars:
-        height = bar.get_height()
-        ax.text(bar.get_x() + bar.get_width()/2., height,
-                f'{height:.1%}',
-                ha='center', va='bottom')
-    
-    st.pyplot(fig)
-
-def main():
-    st.title("📊 Credit Scoring Dashboard")
-    
-    # Get user input
-    form_data = create_input_form()
-    
-    if form_data:
-        with st.spinner("Analyzing client data..."):
-            # Prepare input data
-            input_df = prepare_input_data(form_data)
-            
-            # Make predictions
-            results = make_predictions(input_df)
+    with tab1:
+        st.write("**Logistic Regression Prediction**")
+        pred_text = "Non-Solvent" if results['logistic']['prediction'] == 1 else "Solvent"
+        st.success(f"Predicted Status: {pred_text}")
         
+        # Probability bars
+        st.write("**Probability**")
+        proba_df = pd.DataFrame({
+            'Status': ['Solvent', 'Non-Solvent'],
+            'Probability': results['logistic']['proba_array']
+        })
+        st.bar_chart(proba_df.set_index('Status'))
+        
+    with tab2:
+        st.write("**KNN Model Prediction**")
+        pred_text = "Non-Solvent" if results['knn']['prediction'] == 1 else "Solvent"
+        st.success(f"Predicted Status: {pred_text}")
+        
+        # Probability bars
+        st.write("**Probability**")
+        proba_df = pd.DataFrame({
+            'Status': ['Solvent', 'Non-Solvent'],
+            'Probability': results['knn']['proba_array']
+        })
+        st.bar_chart(proba_df.set_index('Status'))
+    
+    # Comparison
+    st.subheader("Model Comparison")
+    compare_df = pd.DataFrame({
+        'Model': ['Logistic Regression', 'KNN'],
+        'Non-Solvent Probability': [
+            results['logistic']['proba_array'][1],
+            results['knn']['proba_array'][1]
+    })
+    st.bar_chart(compare_df.set_index('Model'))
+
+# Main app flow
+if st.sidebar.button('Predict Solvency'):
+    with st.spinner('Making predictions...'):
+        # Prepare input
+        input_df = prepare_input(input_data)
+        
+        # Make predictions
+        results = predict(input_df)
+        
+        # Display results
         if results:
             display_results(results)
+            
+            # Show raw input data
+            with st.expander("View Input Data"):
+                st.dataframe(input_df.drop(columns=OUTLIER_COLS))
+else:
+    st.info("Please enter client information in the sidebar and click 'Predict Solvency'")
 
-if __name__ == "__main__":
-    main()
+# Debug information
+with st.expander("Debug Information"):
+    st.write("**Looking for model files in:**")
+    for model_name, filename in MODEL_FILES.items():
+        path = os.path.join(MODEL_DIR, filename)
+        exists = "✅ Found" if os.path.exists(path) else "❌ Missing"
+        st.write(f"- {filename}: {exists}")
+    
+    if models:
+        st.write("**Models loaded successfully**")
+        st.write(f"- Logistic Regression: {type(models['logistic'])}")
+        st.write(f"- KNN Model: {type(models['knn'])}")
+        st.write(f"- Scaler: {type(models['scaler'])}")
