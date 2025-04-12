@@ -60,9 +60,6 @@ with col2:
     amount = st.number_input("Loan Amount (€)", min_value=0.0, value=1000.0, step=100.0)
     price = st.number_input("Purchase Value (€)", min_value=0.0, value=1200.0, step=100.0)
 
-# Statut1 input (binary classification)
-statut1 = st.selectbox("Client Solvency Status (Statut1)", options=[0, 1], format_func=lambda x: "Non-Solvent" if x == 0 else "Solvent")
-
 # Prepare input data
 client_data = pd.DataFrame({
     "Age": [age],
@@ -70,8 +67,7 @@ client_data = pd.DataFrame({
     "Expenses": [expenses],
     "Income": [income],
     "Amount": [amount],
-    "Price": [price],
-    "Statut1": [statut1]
+    "Price": [price]
 })
 
 # =============================================
