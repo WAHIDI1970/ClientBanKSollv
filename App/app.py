@@ -2,151 +2,164 @@
 import streamlit as st
 import pandas as pd
 import joblib
-import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 
-# Page Configuration
+# Page config
 st.set_page_config(
-    page_title="Client Solvency Predictor",
-    layout="centered",
+    page_title="Client Solvency Predictor", 
+    layout="wide",
     page_icon="🏦"
 )
 
-# Title and Description
-st.title("🏦 Client Solvency Prediction")
-st.markdown("""
-Compare predictions from both Logistic Regression and KNN models
-""")
+# Title
+st.title("🏦 Client Solvency Prediction Dashboard")
+st.markdown("Compare predictions from Logistic Regression and KNN models")
 
-# Custom Class Definition (Critical for your KNN model)
-class ModeleKNNOptimise:
-    pass  # This matches your notebook's custom class
+# Sidebar - User Inputs
+st.sidebar.header("📋 Client Information")
 
-# Load Models with Error Handling
+# Input fields with improved UX
+col1, col2 = st.sidebar.columns(2)
+with col1:
+    age = st.number_input("Age", min_value=18, max_value=100, value=30)
+    marital = st.selectbox(
+        "Marital Status",
+        options=[1, 2, 3],
+        format_func=lambda x: {1: "Single", 2: "Married", 3: "Divorced"}[x]
+    )
+    expenses = st.number_input("Monthly Expenses (€)", min_value=0.0, value=200.0, step=50.0)
+
+with col2:
+    income = st.number_input("Monthly Income (€)", min_value=0.0, value=800.0, step=50.0)
+    amount = st.number_input("Loan Amount (€)", min_value=0.0, value=1000.0, step=100.0)
+    price = st.number_input("Purchase Value (€)", min_value=0.0, value=1200.0, step=100.0)
+
+# Prepare input data
+client_data = pd.DataFrame({
+    "Age": [age],
+    "Marital": [marital],
+    "Expenses": [expenses],
+    "Income": [income],
+    "Amount": [amount],
+    "Price": [price]
+})
+
+# Model Loading with error handling
 @st.cache_resource
 def load_models():
     try:
-        # Register custom class before loading
-        joblib.register('ModeleKNNOptimise', ModeleKNNOptimise)
-        
-        return {
-            'logistic': joblib.load("models/logistic_model.pkl"),
-            'knn': joblib.load("models/KNN (1).pkl"),
-            'scaler': joblib.load("models/scaler (1).pkl")
+        models = {
+            "logistic": joblib.load("models/logistic_model.pkl"),
+            "knn": joblib.load("models/KNN_model.pkl"),  # Ensure correct KNN model name
+            "scaler": joblib.load("models/scaler.pkl")  # Ensure correct scaler name
         }
+        
+        # Validation checks
+        if not all(hasattr(models['scaler'], attr) for attr in ['mean_', 'scale_']):
+            st.error("❌ Scaler is not properly fitted!")
+            st.stop()
+            
+        return models
     except Exception as e:
         st.error(f"❌ Model loading failed: {str(e)}")
         st.stop()
 
 models = load_models()
 
-# Client Input Form
-with st.form("client_input"):
-    st.header("🧾 Client Information")
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        age = st.number_input("Age", min_value=18, max_value=100, value=30)
-        marital = st.selectbox(
-            "Marital Status",
-            options=[1, 2, 3],
-            format_func=lambda x: {1: "Single", 2: "Married", 3: "Divorced"}[x]
-        )
-        expenses = st.number_input("Monthly Expenses (€)", min_value=0.0, value=200.0)
-    
-    with col2:
-        income = st.number_input("Monthly Income (€)", min_value=0.0, value=800.0)
-        amount = st.number_input("Loan Amount (€)", min_value=0.0, value=1000.0)
-        price = st.number_input("Purchase Value (€)", min_value=0.0, value=1200.0)
-    
-    submitted = st.form_submit_button("Predict Solvency")
-
-# Prediction Function
-def predict(client_data):
+# Prediction function
+def make_predictions(data):
     try:
-        # Scale data for logistic regression
-        scaled_data = models['scaler'].transform(client_data)
+        # Scale features for logistic regression
+        scaled_data = models['scaler'].transform(data)
         
         # Get predictions
-        logistic_pred = models['logistic'].predict(scaled_data)[0]
-        logistic_proba = models['logistic'].predict_proba(scaled_data)[0][1]
-        
-        knn_pred = models['knn'].predict(client_data)[0]
-        knn_proba = models['knn'].predict_proba(client_data)[0][1]
-        
-        return {
-            'logistic': {
-                'pred': logistic_pred,
-                'proba': logistic_proba,
-                'label': "Non-Solvent" if logistic_pred == 1 else "Solvent"
-            },
-            'knn': {
-                'pred': knn_pred,
-                'proba': knn_proba,
-                'label': "Non-Solvent" if knn_pred == 1 else "Solvent"
+        results = {}
+        for name in ['logistic', 'knn']:
+            if name == 'logistic':
+                pred = models[name].predict(scaled_data)
+                proba = models[name].predict_proba(scaled_data)
+            else:
+                pred = models[name].predict(data)
+                proba = models[name].predict_proba(data)
+                
+            results[name] = {
+                'prediction': pred[0],
+                'probability': proba[0][1]  # Probability of class 1 (non-solvent)
             }
-        }
+        return results
     except Exception as e:
-        st.error(f"Prediction error: {str(e)}")
+        st.error(f"❌ Prediction error: {str(e)}")
         st.stop()
 
-# Display Results
-if submitted:
-    client_data = pd.DataFrame({
-        "Age": [age],
-        "Marital": [marital],
-        "Expenses": [expenses],
-        "Income": [income],
-        "Amount": [amount],
-        "Price": [price]
-    })
-    
-    results = predict(client_data)
-    
-    st.header("📊 Prediction Results")
-    
-    # Logistic Regression Results
-    with st.expander("Logistic Regression", expanded=True):
-        col1, col2 = st.columns([1, 3])
-        with col1:
-            if results['logistic']['pred'] == 1:
-                st.error("🔴 Non-Solvent")
-            else:
-                st.success("🟢 Solvent")
+# Display results
+if st.sidebar.button("🔮 Predict Solvency", type="primary"):
+    with st.spinner("Analyzing client data..."):
+        results = make_predictions(client_data)
         
-        with col2:
-            st.progress(results['logistic']['proba'])
-            st.caption(f"Confidence: {results['logistic']['proba']:.1%}")
-    
-    # KNN Results
-    with st.expander("KNN Model", expanded=True):
-        col1, col2 = st.columns([1, 3])
-        with col1:
-            if results['knn']['pred'] == 1:
-                st.error("🔴 Non-Solvent")
-            else:
-                st.success("🟢 Solvent")
+        # Results columns
+        col1, col2 = st.columns(2)
         
+        # Logistic Regression Results
+        with col1:
+            st.subheader("Logistic Regression")
+            if results['logistic']['prediction'] == 1:
+                st.error(f"🚨 Non-Solvent (Probability: {results['logistic']['probability']:.1%})")
+            else:
+                st.success(f"✅ Solvent (Probability: {1 - results['logistic']['probability']:.1%})")
+            
+            # Confusion matrix visualization
+            st.markdown("**Model Performance**")
+            fig, ax = plt.subplots()
+            ConfusionMatrixDisplay.from_estimator(
+                models['logistic'], 
+                models['scaler'].transform(client_data), 
+                [0],  # Dummy data
+                display_labels=['Solvent', 'Non-Solvent'],
+                ax=ax
+            )
+            st.pyplot(fig)
+        
+        # KNN Results
         with col2:
-            st.progress(results['knn']['proba'])
-            st.caption(f"Confidence: {results['knn']['proba']:.1%}")
-    
-    # Comparison Summary
-    st.divider()
-    st.subheader("🔍 Model Comparison")
-    
-    if results['logistic']['pred'] == results['knn']['pred']:
-        st.success("✅ Both models agree on the prediction")
-    else:
-        st.warning("⚠️ Models disagree on the prediction")
-    
-    # Client Data Display
-    st.subheader("📋 Client Data Summary")
-    st.dataframe(client_data.style.format({
-        "Expenses": "€{:.2f}",
-        "Income": "€{:.2f}",
-        "Amount": "€{:.2f}",
-        "Price": "€{:.2f}"
-    }))
+            st.subheader("KNN Classifier")
+            if results['knn']['prediction'] == 1:
+                st.error(f"🚨 Non-Solvent (Probability: {results['knn']['probability']:.1%})")
+            else:
+                st.success(f"✅ Solvent (Probability: {1 - results['knn']['probability']:.1%})")
+            
+            # Feature importance placeholder
+            st.markdown("**Feature Importance**")
+            st.info("Note: KNN doesn't provide inherent feature importance")
+        
+        # Client data display
+        st.divider()
+        st.subheader("📊 Client Data Summary")
+        st.dataframe(client_data.style.format({
+            "Expenses": "€{:.2f}",
+            "Income": "€{:.2f}", 
+            "Amount": "€{:.2f}",
+            "Price": "€{:.2f}"
+        }))
 
-# Footer
-st.caption("Note: Predictions are based on machine learning models and should be used as advisory only.")
+        # Download results
+        result_df = client_data.copy()
+        for name in ['logistic', 'knn']:
+            result_df[f'{name}_prediction'] = ['Non-Solvent' if results[name]['prediction'] == 1 else 'Solvent']
+            result_df[f'{name}_probability'] = [f"{results[name]['probability']:.1%}"]
+        
+        csv = result_df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Download Prediction Results",
+            data=csv,
+            file_name="client_solvency_prediction.csv",
+            mime="text/csv"
+        )
+
+# Model comparison section
+st.sidebar.divider()
+st.sidebar.markdown("""
+**ℹ️ Model Comparison**  
+- Logistic Regression: Better for interpretability  
+- KNN: Better for non-linear patterns  
+""")
