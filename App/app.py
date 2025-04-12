@@ -33,7 +33,8 @@ def load_models():
     try:
         # Load models and scaler
         logistic_model = joblib.load("models/logistic_model.pkl")
-        knn_model = joblib.load("models/KNN (1).pkl", custom_objects={"ModeleKNNOptimise": ModeleKNNOptimise})
+        # Directly load the custom KNN model
+        knn_model = joblib.load("models/KNN (1).pkl")
         scaler = joblib.load("models/scaler (1).pkl")
         
         # Validate scaler
