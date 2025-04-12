@@ -4,7 +4,6 @@ import pandas as pd
 import joblib
 import os
 from sklearn.preprocessing import StandardScaler
-import matplotlib.pyplot as plt
 
 # Define custom KNN class if needed
 class ModelekNNOptimise:
@@ -160,7 +159,8 @@ def display_results(results):
         'Non-Solvent Probability': [
             results['logistic']['proba_array'][1],
             results['knn']['proba_array'][1]
-    })
+        ]
+    })  # Fixed the bracket issue here
     st.bar_chart(compare_df.set_index('Model'))
 
 # Main app flow
