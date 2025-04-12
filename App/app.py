@@ -21,7 +21,7 @@ Cette application prédit si un client est **solvable** ou **non solvable** à p
 def load_models():
     try:
         model = joblib.load("models/logistic_model.pkl")
-        scaler = joblib.load("models/scaler.pkl")
+        scaler = joblib.load("models/scaler(1).pkl")
         return model, scaler
     except FileNotFoundError:
         st.error("❌ Modèles non trouvés. Assurez-vous que les fichiers 'logistic_model.pkl' et 'scaler.pkl' existent dans le dossier 'models/'.")
