@@ -51,8 +51,8 @@ def load_models():
     try:
         models = {
             "logistic": joblib.load("models/logistic_model.pkl"),
-            "knn": joblib.load("models/KNN_model.pkl"),  # Ensure correct KNN model name
-            "scaler": joblib.load("models/scaler.pkl")  # Ensure correct scaler name
+            "knn": joblib.load("models/KNN (1).pkl"),  # Ensure correct KNN model name
+            "scaler": joblib.load("models/scaler (1).pkl")  # Ensure correct scaler name
         }
         
         # Validation checks
