@@ -3,6 +3,8 @@ import streamlit as st
 import pandas as pd
 import joblib
 from sklearn.preprocessing import StandardScaler
+import matplotlib.pyplot as plt
+import os
 
 # Set page config
 st.set_page_config(
@@ -11,19 +13,35 @@ st.set_page_config(
     layout="wide"
 )
 
-# Load models
+# Debug function to show file structure
+def show_file_structure():
+    st.sidebar.header("Debug Information")
+    base = os.getcwd()
+    st.sidebar.write(f"Current directory: {base}")
+    
+    for root, dirs, files in os.walk(base):
+        st.sidebar.write(f"📁 {root.replace(base, '')}")
+        for file in files:
+            st.sidebar.write(f"  📄 {file}")
+
+# Load models with correct names from your repository
 @st.cache_resource
 def load_models():
     try:
-        log_model = joblib.load('logistic_model.joblib')
-        best_knn = joblib.load('KNN (1).joblib')
-        scaler = joblib.load('scaler (1).joblib')
-        return log_model, best_knn, scaler
+        # Updated to match your actual filenames
+        log_model = joblib.load('models/logistic_model.pkl')
+        knn_model = joblib.load('models/KNN (1).pkl')
+        scaler = joblib.load('models/scaler (1).pkl')
+        return log_model, knn_model, scaler
     except Exception as e:
         st.error(f"Error loading models: {e}")
+        show_file_structure()
         return None, None, None
 
-log_model, best_knn, scaler = load_models()
+log_model, knn_model, scaler = load_models()
+
+if None in [log_model, knn_model, scaler]:
+    st.stop()
 
 # Feature mapping - adjust based on your actual training features
 FEATURE_MAPPING = {
@@ -35,7 +53,7 @@ FEATURE_MAPPING = {
     'Purchase Value (€)': 'Price'
 }
 
-# Original features used in training (update this list with your actual features)
+# Original features used in training
 TRAINING_FEATURES = [
     'Age', 'Marital', 'Expenses', 'Income', 'Amount', 'Price',
     'outlier_amount', 'outlier_expenses', 'outlier_income', 'outlier_price'
@@ -46,7 +64,7 @@ def prepare_input_data(form_data):
     # Map form fields to model features
     input_data = {
         'Age': float(form_data['Age']),
-        'Marital': 1 if form_data['Marital Status'] == 'Single' else 2,  # Adjust based on your encoding
+        'Marital': 1 if form_data['Marital Status'] == 'Single' else 2,
         'Expenses': float(form_data['Monthly Expenses (€)']),
         'Income': float(form_data['Monthly Income (€)']),
         'Amount': float(form_data['Loan Amount (€)']),
@@ -73,8 +91,8 @@ def predict_credit_risk(input_df):
         log_pred = log_model.predict(scaled_features)[0]
         log_proba = log_model.predict_proba(scaled_features)[0]
         
-        knn_pred = best_knn.predict(input_df)[0]
-        knn_proba = best_knn.predict_proba(input_df)[0]
+        knn_pred = knn_model.predict(input_df)[0]
+        knn_proba = knn_model.predict_proba(input_df)[0]
         
         return {
             'logistic': {
@@ -95,6 +113,7 @@ def predict_credit_risk(input_df):
 # Main app
 def main():
     st.title("📊 Credit Scoring Dashboard")
+    show_file_structure()
     
     # Client information form
     with st.form("client_info"):
@@ -166,5 +185,4 @@ def main():
             st.pyplot(fig)
 
 if __name__ == "__main__":
-    import matplotlib.pyplot as plt
     main()
