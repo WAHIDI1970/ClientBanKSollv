@@ -17,7 +17,7 @@ st.set_page_config(
 
 # Set up file paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_PATH = os.path.join(BASE_DIR, 'data', 'scoring.sav')
+DATA_PATH = os.path.join(BASE_DIR, 'Data', 'scoring.sav')
 MODEL_PATHS = {
     'logistic': os.path.join(BASE_DIR, 'models', 'logistic_model.pkl'),
     'knn': os.path.join(BASE_DIR, 'models', 'KNN (1).pkl'),
