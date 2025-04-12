@@ -2,8 +2,6 @@
 import streamlit as st
 import pandas as pd
 import joblib
-import matplotlib.pyplot as plt
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 from sklearn.neighbors import KNeighborsClassifier
 
 # =============================================
@@ -17,7 +15,7 @@ class ModeleKNNOptimise(KNeighborsClassifier):
 # PAGE CONFIGURATION
 # =============================================
 st.set_page_config(
-    page_title="Client Solvency Predictor", 
+    page_title="Client Solvency Predictor",
     layout="wide",
     page_icon="🏦"
 )
@@ -31,22 +29,10 @@ st.markdown("Compare predictions from Logistic Regression and KNN models")
 @st.cache_resource
 def load_models():
     try:
-        # Load models and scaler
         logistic_model = joblib.load("models/logistic_model.pkl")
-        # Directly load the custom KNN model
         knn_model = joblib.load("models/KNN (1).pkl")
         scaler = joblib.load("models/scaler (1).pkl")
-        
-        # Validate scaler
-        if not hasattr(scaler, 'mean_'):
-            st.error("❌ Scaler is not properly fitted!")
-            st.stop()
-        
-        return {
-            "logistic": logistic_model,
-            "knn": knn_model,
-            "scaler": scaler
-        }
+        return {"logistic": logistic_model, "knn": knn_model, "scaler": scaler}
     except Exception as e:
         st.error(f"❌ Model loading failed: {str(e)}")
         st.stop()
@@ -59,6 +45,7 @@ models = load_models()
 st.sidebar.header("📋 Client Information")
 col1, col2 = st.sidebar.columns(2)
 
+# Input fields for features
 with col1:
     age = st.number_input("Age", min_value=18, max_value=100, value=30)
     marital = st.selectbox(
@@ -73,6 +60,9 @@ with col2:
     amount = st.number_input("Loan Amount (€)", min_value=0.0, value=1000.0, step=100.0)
     price = st.number_input("Purchase Value (€)", min_value=0.0, value=1200.0, step=100.0)
 
+# Statut1 input (binary classification)
+statut1 = st.selectbox("Client Solvency Status (Statut1)", options=[0, 1], format_func=lambda x: "Non-Solvent" if x == 0 else "Solvent")
+
 # Prepare input data
 client_data = pd.DataFrame({
     "Age": [age],
@@ -80,7 +70,8 @@ client_data = pd.DataFrame({
     "Expenses": [expenses],
     "Income": [income],
     "Amount": [amount],
-    "Price": [price]
+    "Price": [price],
+    "Statut1": [statut1]
 })
 
 # =============================================
@@ -113,7 +104,6 @@ if st.sidebar.button("🔮 Predict Solvency", type="primary"):
     with st.spinner("Analyzing client data..."):
         results = make_predictions(client_data)
         
-        # Main results columns
         col1, col2 = st.columns(2)
         
         # Logistic Regression Results
