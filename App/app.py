@@ -13,9 +13,6 @@ class ModeleKNNOptimise(KNeighborsClassifier):
     """Wrapper class to match your notebook's custom KNN model"""
     pass
 
-# Register the custom class before loading models
-joblib.register('ModeleKNNOptimise', ModeleKNNOptimise)
-
 # =============================================
 # PAGE CONFIGURATION
 # =============================================
@@ -34,18 +31,21 @@ st.markdown("Compare predictions from Logistic Regression and KNN models")
 @st.cache_resource
 def load_models():
     try:
-        models = {
-            "logistic": joblib.load("models/logistic_model.pkl"),
-            "knn": joblib.load("models/KNN (1).pkl"),  # Your custom KNN model
-            "scaler": joblib.load("models/scaler (1).pkl")
-        }
+        # Load models and scaler
+        logistic_model = joblib.load("models/logistic_model.pkl")
+        knn_model = joblib.load("models/KNN (1).pkl", custom_objects={"ModeleKNNOptimise": ModeleKNNOptimise})
+        scaler = joblib.load("models/scaler (1).pkl")
         
         # Validate scaler
-        if not hasattr(models['scaler'], 'mean_'):
+        if not hasattr(scaler, 'mean_'):
             st.error("❌ Scaler is not properly fitted!")
             st.stop()
-            
-        return models
+        
+        return {
+            "logistic": logistic_model,
+            "knn": knn_model,
+            "scaler": scaler
+        }
     except Exception as e:
         st.error(f"❌ Model loading failed: {str(e)}")
         st.stop()
@@ -122,26 +122,6 @@ if st.sidebar.button("🔮 Predict Solvency", type="primary"):
                 st.error(f"🚨 Non-Solvent (Confidence: {results['logistic']['probability']:.1%})")
             else:
                 st.success(f"✅ Solvent (Confidence: {1-results['logistic']['probability']:.1%})")
-            
-            # Performance metrics
-            st.markdown("**Model Characteristics**")
-            st.markdown("- 📊 Better for interpretable results")
-            st.markdown("- ⚖️ Handles class imbalance well")
-            
-            # Confusion matrix
-            try:
-                fig, ax = plt.subplots()
-                ConfusionMatrixDisplay.from_estimator(
-                    models['logistic'],
-                    models['scaler'].transform(client_data),
-                    [0],  # Dummy data for visualization
-                    display_labels=['Solvent', 'Non-Solvent'],
-                    ax=ax,
-                    cmap='Blues'
-                )
-                st.pyplot(fig)
-            except Exception:
-                st.warning("Could not display confusion matrix")
 
         # KNN Results
         with col2:
@@ -150,58 +130,9 @@ if st.sidebar.button("🔮 Predict Solvency", type="primary"):
                 st.error(f"🚨 Non-Solvent (Confidence: {results['knn']['probability']:.1%})")
             else:
                 st.success(f"✅ Solvent (Confidence: {1-results['knn']['probability']:.1%})")
-            
-            # Performance metrics
-            st.markdown("**Model Characteristics**")
-            st.markdown("- 🧠 Better for complex patterns")
-            st.markdown("- 📏 Uses distance-based analysis")
-            
-            # Feature importance placeholder
-            st.markdown("**Decision Factors**")
-            st.info("KNN considers all features equally in its distance calculation")
 
-        # Comparison summary
         st.divider()
         if results['logistic']['prediction'] == results['knn']['prediction']:
             st.success("🎯 Both models agree on the prediction")
         else:
             st.warning("⚠️ Models disagree - consider manual review")
-            
-            # Show confidence comparison
-            diff = abs(results['logistic']['probability'] - results['knn']['probability'])
-            st.metric("Confidence Difference", f"{diff:.1%}")
-
-        # Client data display
-        st.subheader("📋 Client Data Summary")
-        st.dataframe(client_data.style.format({
-            "Expenses": "€{:.2f}",
-            "Income": "€{:.2f}", 
-            "Amount": "€{:.2f}",
-            "Price": "€{:.2f}"
-        }))
-
-        # Download results
-        csv = client_data.assign(
-            Logistic_Prediction=["Non-Solvent" if results['logistic']['prediction'] == 1 else "Solvent"],
-            Logistic_Confidence=[f"{results['logistic']['probability']:.1%}"],
-            KNN_Prediction=["Non-Solvent" if results['knn']['prediction'] == 1 else "Solvent"],
-            KNN_Confidence=[f"{results['knn']['probability']:.1%}"]
-        ).to_csv(index=False).encode('utf-8')
-        
-        st.download_button(
-            label="📥 Download Full Report",
-            data=csv,
-            file_name="client_solvency_analysis.csv",
-            mime="text/csv"
-        )
-
-# =============================================
-# SIDEBAR FOOTER
-# =============================================
-st.sidebar.divider()
-st.sidebar.markdown("""
-**ℹ️ About These Models**  
-- Trained on historical client data  
-- Updated monthly  
-- Threshold: 65% confidence  
-""")
