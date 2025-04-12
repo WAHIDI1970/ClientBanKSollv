@@ -124,3 +124,6 @@ print("✅ Modèle sauvegardé : logistic_model.pkl")
 
 
 
+
+
+
