@@ -51,15 +51,9 @@ def load_models():
     try:
         models = {
             "logistic": joblib.load("models/logistic_model.pkl"),
-            "knn": joblib.load("models/KNN (1).pkl"),  # Ensure correct KNN model name
-            "scaler": joblib.load("models/scaler (1).pkl")  # Ensure correct scaler name
+            "knn": joblib.load("models/KNN (1).pkl"),
+            "scaler": joblib.load("models/scaler (1).pkl")
         }
-        
-        # Validation checks
-        if not all(hasattr(models['scaler'], attr) for attr in ['mean_', 'scale_']):
-            st.error("❌ Scaler is not properly fitted!")
-            st.stop()
-            
         return models
     except Exception as e:
         st.error(f"❌ Model loading failed: {str(e)}")
@@ -114,7 +108,6 @@ if st.sidebar.button("🔮 Predict Solvency", type="primary"):
             ConfusionMatrixDisplay.from_estimator(
                 models['logistic'], 
                 models['scaler'].transform(client_data), 
-                [0],  # Dummy data
                 display_labels=['Solvent', 'Non-Solvent'],
                 ax=ax
             )
